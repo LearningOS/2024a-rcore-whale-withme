@@ -60,7 +60,7 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
             syscall_times: get_cur_syscall_times(),
             time: get_time_ms() - get_task_start_time()
         };
-        println!("info.time:{:?}", (*_ti).time);
+        // println!("info.time:{:?}", (*_ti).time);
     }
     
     0

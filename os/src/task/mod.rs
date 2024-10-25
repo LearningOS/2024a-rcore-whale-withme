@@ -128,9 +128,10 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
-            if inner.tasks[next].task_status == TaskStatus::Ready || inner.tasks[next].task_status == TaskStatus::UnInit {
-                inner.tasks[next].task_start_time = get_time_ms();
-            }
+            inner.tasks[next].task_start_time = get_time_ms();
+            // if inner.tasks[next].task_status == TaskStatus::Ready || inner.tasks[next].task_status == TaskStatus::UnInit {
+            //     inner.tasks[next].task_start_time = get_time_ms();
+            // }
             inner.current_task = next;
             
 
