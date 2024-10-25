@@ -128,10 +128,10 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
-            inner.tasks[next].task_start_time = get_time_ms();
-            // if inner.tasks[next].task_status == TaskStatus::Ready || inner.tasks[next].task_status == TaskStatus::UnInit {
-            //     inner.tasks[next].task_start_time = get_time_ms();
-            // }
+            //inner.tasks[next].task_start_time = get_time_ms();
+            if inner.tasks[next].task_start_time == UNINIT_TIME {
+                inner.tasks[next].task_start_time = get_time_ms();
+            }
             inner.current_task = next;
             
 
@@ -153,7 +153,7 @@ impl TaskManager {
         let mut inner = TASK_MANAGER.inner.exclusive_access();
         let cur_id = inner.current_task;
         inner.tasks[cur_id].syscall_times[syscall_id] += 1;     // cur_id ref index that shows TASKINFO, syscall_id ref be called id.
-        // drop(inner);        // Why need drop?
+         drop(inner);        // Why need drop?
     }
 }
 
