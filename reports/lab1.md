@@ -88,7 +88,10 @@ pub struct TaskControlBlock {
 }
 ```
   TaskManager是总调控器，巨大的以任务块为单位的任务数组，同时记录着当前执行任务块。TaskControlBlock记录每个具体任务的状态，
-  以及最关键的切换时的上下文就保存在 TaskContext 中，里面包含ra sp 和12个通用寄存器（这相比 TrapContext 小多了，没有CSR和临时寄存器组）
+  以及最关键的切换时的上下文就保存在 TaskContext 中，里面包含ra sp 和12个通用寄存器（这相比 TrapContext 小多了，没有CSR和临时寄存器组）  
+    
+  > 这里特别对syscall_times做解释，当前任务信息保存在TaskControlBlock中，而此任务可能会调用其他各种不同的任务，
+  所以这里需要开一个同样任务数大小的数组来存放对应任务被调用的次数
   
 ### 以及一些其他问题的思考  
   
@@ -113,5 +116,4 @@ pub struct TaskControlBlock {
     
 
 # 分时多任务系统  
-  
   
