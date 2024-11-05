@@ -117,3 +117,88 @@ pub struct TaskControlBlock {
 
 # 分时多任务系统  
   
+  分时多任务系统解决的是被动任务切换的问题，上面的分析已经可以看到，只有当S态的 trap_handler 执行 _switch 函数，
+  任务主动放弃cpu的使用权，让渡给其他需要的任务，才能实现切换。而随着重视用户体验的交互程序的出现，更多的IO等待让任务
+  越少的主动放弃cpu，这时候就需要引入主动中断：时钟中断。  
+    
+  中断 (Interrupt) 和我们第二章中介绍的异常（包括程序错误导致或执行 Trap 类指令如用于系统调用的 ecall ）一样都是一种 Trap ，
+  但是它们被触发的原因却是不同的。对于某个处理器核而言， 异常与当前 CPU 的指令执行是 同步 (Synchronous) 的，
+  异常被触发的原因一定能够追溯到某条指令的执行；而中断则 异步 (Asynchronous) 于当前正在进行的指令，
+  也就是说中断来自于哪个外设以及中断如何触发完全与处理器正在执行的当前指令无关
+  
+## 代码角度下的时钟中断  
+  
+  硬件层面上 CSR 寄存器做了很多的设计：sstatus 和 sie ，以及这些字段对应不同的特权级，中断能否被不同特权级态屏蔽也是需要设计的。
+  这里我们先对代码上涉及到的时钟中断代码进行分析。  
+  
+```rust
+/// Set the next timer interrupt
+pub fn set_next_trigger() {
+    set_timer(get_time() + CLOCK_FREQ / TICKS_PER_SEC);
+}
+
+/// use sbi call to set timer
+pub fn set_timer(timer: usize) {
+    sbi_call(SBI_SET_TIMER, timer, 0, 0);
+}
+```
+  set_timer 先对 sbi_call 封装，设置 TIMER 触发一个时钟中断，进一步封装成 set_next_trigger ，间隔是10ms，
+  这里使用时钟频率来定义的。那有了接口之后，我们什么时候触发使用这个时钟中断呢？  
+  
+```rust
+match scause.cause() {
+        Trap::Exception(Exception::UserEnvCall) => {
+            // jump to next instruction anyway
+            cx.sepc += 4;
+            // get system call return value
+            cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+        }
+        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
+            println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
+            exit_current_and_run_next();
+        }
+        Trap::Exception(Exception::IllegalInstruction) => {
+            println!("[kernel] IllegalInstruction in application, kernel killed it.");
+            exit_current_and_run_next();
+        }
+        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            set_next_trigger();
+            suspend_current_and_run_next();
+        }
+}
+```
+  
+  再看 trap_handler 对 scause 寄存器的原因进行分析，如果出现异常属于是时钟中断那么先设置下一次触发的时间，
+  接着休眠再运行下一个任务。这里的调度实现很草率，请看  
+```rust
+fn find_next_task(&self) -> Option<usize> {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        (current + 1..current + self.num_app + 1)
+            .map(|id| id % self.num_app)
+            .find(|id| inner.tasks[*id].task_status == TaskStatus::Ready)
+    }
+```
+  
+  find_next_task 找到下一个任务的方法就是从当前的任务号开始向下找直到找到一个 Ready 状态的任务，
+  把它加进来作为下一个任务。  
+    
+  我们继续向下分析时钟中断。既然已经有了异常处理，那么只需要在程序运行最开始处设置好中断即可，
+  在main函数里，有  
+```rust
+/// the rust entry-point of os
+pub fn rust_main() -> ! {
+    clear_bss();
+    kernel_log_info();
+    heap_alloc::init_heap();
+    trap::init();
+    loader::load_apps();
+    trap::enable_timer_interrupt();
+    timer::set_next_trigger();
+    task::run_first_task();
+    panic!("Unreachable in rust_main!");
+}
+```
+  
+  timer::set_next_trigger() 设置时钟，trap::enable_timer_interrupt() 设置sie.stie 使得 S 特权级时钟中断不会被屏蔽
+  
