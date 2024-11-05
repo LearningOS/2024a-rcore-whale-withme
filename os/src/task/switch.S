@@ -13,8 +13,10 @@ __switch:
     #     next_task_cx_ptr: *const TaskContext
     # )
     # save kernel stack of current task
+    # 将当前任务的内核栈指针保存到 current_task_cx_ptr 的偏移量为 8 的位置
     sd sp, 8(a0)
     # save ra & s0~s11 of current execution
+    # 将返回地址寄存器（ra）保存到 current_task_cx_ptr 的偏移量为 0 的位置
     sd ra, 0(a0)
     .set n, 0
     .rept 12
@@ -22,6 +24,7 @@ __switch:
         .set n, n + 1
     .endr
     # restore ra & s0~s11 of next execution
+    # 从 next_task_cx_ptr 的偏移量为 0 的位置恢复返回地址寄存器（ra）
     ld ra, 0(a1)
     .set n, 0
     .rept 12
@@ -29,6 +32,7 @@ __switch:
         .set n, n + 1
     .endr
     # restore kernel stack of next task
+    # 从 next_task_cx_ptr 的偏移量为 8 的位置恢复内核栈指针
     ld sp, 8(a1)
     ret
 
